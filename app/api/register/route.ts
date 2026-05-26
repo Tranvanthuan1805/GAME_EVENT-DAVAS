@@ -32,14 +32,15 @@ async function notifyTelegram(reg: Registration): Promise<void> {
     `⏰ <b>Thời gian:</b> ${reg.timestamp}`,
   ].join("\n");
 
-  try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
-    });
-  } catch (e) {
-    console.error("[telegram]", e);
+  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "HTML" }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("[telegram] failed:", res.status, err);
   }
 }
 
@@ -56,17 +57,15 @@ export async function POST(request: NextRequest) {
     lang: data.lang === "vi" ? "Tiếng Việt" : "English",
   };
 
-  // Send to Telegram immediately (fire-and-forget to not delay game start)
-  notifyTelegram(reg).catch(() => {});
-
-  // Also save to Redis if configured
-  try {
-    if (redis) {
-      await redis.lpush("duo:registrations", JSON.stringify(reg));
-    }
-  } catch (e) {
-    console.error("[redis]", e);
-  }
+  // Await both in parallel — Vercel sẽ không kill function trước khi hoàn thành
+  await Promise.allSettled([
+    notifyTelegram(reg),
+    redis
+      ? redis.lpush("duo:registrations", JSON.stringify(reg)).catch((e) =>
+          console.error("[redis]", e)
+        )
+      : Promise.resolve(),
+  ]);
 
   return NextResponse.json({ success: true });
 }
