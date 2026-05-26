@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { redis } from "@/lib/redis";
 
 export interface Registration {
   id: string;
@@ -25,10 +25,11 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    await kv.lpush("duo:registrations", reg);
+    if (redis) {
+      await redis.lpush("duo:registrations", JSON.stringify(reg));
+    }
   } catch (e) {
-    // KV not configured yet — game still works
-    console.error("[kv:register]", e);
+    console.error("[redis:register]", e);
   }
 
   return NextResponse.json({ success: true });

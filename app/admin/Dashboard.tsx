@@ -19,7 +19,7 @@ export default function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState<string>("");
   const [search, setSearch] = useState("");
   const [filterType, setFilterType] = useState<"all" | "business" | "individual">("all");
-  const [kvError, setKvError] = useState(false);
+  const [dbError, setDbError] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -27,7 +27,7 @@ export default function Dashboard() {
       if (res.status === 401) { router.refresh(); return; }
       const json = await res.json();
       setData(json.data ?? []);
-      setKvError(!!json.kvError);
+      setDbError(!!(json.kvError || json.redisError));
       setLastUpdate(new Date().toLocaleTimeString("vi-VN"));
     } catch {
       // silent
@@ -124,12 +124,12 @@ export default function Dashboard() {
 
       <main className="flex-1 p-4 md:p-6 w-full max-w-7xl mx-auto">
         {/* KV warning */}
-        {kvError && (
+        {dbError && (
           <div
             className="mb-4 px-4 py-3 rounded-2xl text-sm"
             style={{ background: "rgba(255,165,0,0.1)", border: "1px solid rgba(255,165,0,0.3)", color: "#ffb347" }}
           >
-            ⚠️ Database chưa được kết nối. Chạy <code className="font-mono bg-white/10 px-1 rounded">vercel kv create duo-game-db</code> rồi redeploy để lưu dữ liệu.
+            ⚠️ Database chưa kết nối — cần thêm Upstash Redis vào Vercel. Xem hướng dẫn bên dưới.
           </div>
         )}
 

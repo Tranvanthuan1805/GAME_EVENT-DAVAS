@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kv } from "@vercel/kv";
+import { redis } from "@/lib/redis";
 import { isAuthenticated, AUTH_COOKIE } from "@/lib/admin-auth";
 import type { Registration } from "@/app/api/register/route";
 
@@ -9,12 +9,19 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  if (!redis) {
+    return NextResponse.json({ success: true, data: [], redisError: true });
+  }
+
   try {
-    const items = await kv.lrange<Registration>("duo:registrations", 0, -1);
-    return NextResponse.json({ success: true, data: items ?? [] });
+    const raw = await redis.lrange("duo:registrations", 0, -1);
+    const data: Registration[] = raw.map(item =>
+      typeof item === "string" ? JSON.parse(item) : item
+    );
+    return NextResponse.json({ success: true, data });
   } catch (e) {
-    console.error("[kv:data]", e);
-    return NextResponse.json({ success: true, data: [], kvError: true });
+    console.error("[redis:data]", e);
+    return NextResponse.json({ success: true, data: [], redisError: true });
   }
 }
 
@@ -23,9 +30,10 @@ export async function DELETE(request: NextRequest) {
   if (!isAuthenticated(token)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (!redis) return NextResponse.json({ success: false, error: "no_redis" });
 
   try {
-    await kv.del("duo:registrations");
+    await redis.del("duo:registrations");
     return NextResponse.json({ success: true });
   } catch (e) {
     return NextResponse.json({ success: false, error: String(e) }, { status: 500 });
