@@ -41,15 +41,26 @@ export default function RegisterPage() {
     return e;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const e2 = validate();
     if (Object.keys(e2).length > 0) { setErrors(e2); return; }
     setSubmitting(true);
+
+    const payload = { ...form, lang, registeredAt: new Date().toISOString() };
+
     if (typeof window !== "undefined") {
-      localStorage.setItem("duo_player", JSON.stringify({ ...form, lang, registeredAt: new Date().toISOString() }));
+      localStorage.setItem("duo_player", JSON.stringify(payload));
     }
-    setTimeout(() => router.push("/game"), 400);
+
+    // Fire-and-forget: send to Google Sheet, don't block navigation on failure
+    fetch("/api/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch(() => {});
+
+    setTimeout(() => router.push("/game"), 500);
   };
 
   const field = (key: keyof FormData, value: string) => {
