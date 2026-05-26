@@ -1,33 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
+import { kv } from "@vercel/kv";
+
+export interface Registration {
+  id: string;
+  timestamp: string;
+  name: string;
+  phone: string;
+  email: string;
+  type: string;
+  lang: string;
+}
 
 export async function POST(request: NextRequest) {
   const data = await request.json();
-  const scriptUrl = process.env.SHEET_API_URL;
 
-  if (!scriptUrl) {
-    // Game still works without the sheet configured
-    return NextResponse.json({ success: true, note: "sheet_not_configured" });
-  }
+  const reg: Registration = {
+    id: crypto.randomUUID(),
+    timestamp: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
+    name: (data.name ?? "").trim(),
+    phone: (data.phone ?? "").trim(),
+    email: (data.email ?? "").trim(),
+    type: data.type === "business" ? "Doanh nghiệp" : "Cá nhân",
+    lang: data.lang === "vi" ? "Tiếng Việt" : "English",
+  };
 
   try {
-    const res = await fetch(scriptUrl, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify({
-        timestamp: new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }),
-        name: data.name ?? "",
-        phone: data.phone ?? "",
-        email: data.email ?? "",
-        type: data.type === "business" ? "Doanh nghiệp" : "Cá nhân",
-        lang: data.lang === "vi" ? "Tiếng Việt" : "English",
-      }),
-    });
-
-    const text = await res.text();
-    return NextResponse.json({ success: true, sheetResponse: text });
-  } catch (err) {
-    // Never block the game – sheet write is best-effort
-    console.error("[sheet]", err);
-    return NextResponse.json({ success: true, sheetError: String(err) });
+    await kv.lpush("duo:registrations", reg);
+  } catch (e) {
+    // KV not configured yet — game still works
+    console.error("[kv:register]", e);
   }
+
+  return NextResponse.json({ success: true });
 }
